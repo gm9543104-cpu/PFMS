@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = Number(process.env.PORT || 8000);
 
 app.use(cors({ origin: (reqOrigin, cb) => {
   const allowed = (process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000']).map(s => s.trim());
@@ -40,5 +40,13 @@ app.use('/api', dashboardRouter);
 // Start server
 (async () => {
   await connectDB();
-  app.listen(PORT, () => console.log(`[PFMS] Backend running on http://localhost:${PORT}`));
+  const server = app.listen(PORT, () => console.log(`[PFMS] Backend running on http://localhost:${PORT}`));
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      const alt = PORT + 1;
+      app.listen(alt, () => console.log(`[PFMS] Port in use, fallback to http://localhost:${alt}`));
+    } else {
+      console.error('[PFMS] Server error', err);
+    }
+  });
 })();
