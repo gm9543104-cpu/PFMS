@@ -34,7 +34,23 @@ async function callOpenRouter(messages) {
   return resp?.data?.choices?.[0]?.message?.content || '';
 }
 
-function buildContext(transactions, goals) {
+function tokenize(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function scoreTransactionAgainstQuery(t, queryTokens) {
+  const fields = [t.vendor, t.category, t.rawText, t.paymentMethod].join(' ');
+  const txTokens = new Set(tokenize(fields));
+  let score = 0;
+  for (const qt of queryTokens) if (txTokens.has(qt)) score += 1;
+  return score;
+}
+
+function buildContext(transactions, goals, query) {
   const last30 = transactions.filter(t => dayjs().diff(dayjs(t.date), 'day') <= 30 && !t.softDeleted);
   const byCategory = last30.reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount * (t.type === 'income' ? -1 : 1);
@@ -44,8 +60,16 @@ function buildContext(transactions, goals) {
     acc[t.vendor] = (acc[t.vendor] || 0) + t.amount;
     return acc;
   }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const queryTokens = tokenize(query);
+  const scored = last30
+    .map(t => ({ t, s: scoreTransactionAgainstQuery(t, queryTokens) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 25)
+    .map(x => x.t);
   return {
     summary: { byCategory, topVendors },
+    relevantTransactions: scored,
     goals: goals.map(g => ({ name: g.name, type: g.type, target: g.target, current: g.current, status: g.status }))
   };
 }
@@ -61,7 +85,7 @@ function detectCrudIntents(text) {
 export async function ragChat({ userId, query }) {
   const transactions = await Transaction.find({ userId, softDeleted: false }).limit(1000).lean();
   const goals = await Goal.find({ userId }).limit(100).lean();
-  const context = buildContext(transactions, goals);
+  const context = buildContext(transactions, goals, query);
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },

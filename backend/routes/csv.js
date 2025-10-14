@@ -3,6 +3,7 @@ import multer from 'multer';
 import { parse } from 'csv-parse';
 import { categorizeTransactionsWithAI } from '../services/aiCategorizer.js';
 import { Transaction } from '../models/transactionModel.js';
+import { CategoryOverride } from '../models/categoryOverrideModel.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -28,10 +29,14 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
 
     const categorized = await categorizeTransactionsWithAI(rawLines);
 
+    // Apply user category overrides
+    const overrides = await CategoryOverride.find({ userId }).lean();
+    const vendorToCat = new Map(overrides.map(o => [o.vendor.toLowerCase(), o.category]));
+
     const docs = categorized.map(t => ({
       userId,
       vendor: t.vendor,
-      category: t.category,
+      category: vendorToCat.get(String(t.vendor || '').toLowerCase()) || t.category,
       amount: t.amount,
       date: t.date,
       type: t.type || 'expense',

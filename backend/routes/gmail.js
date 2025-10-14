@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { categorizeTransactionsWithAI } from '../services/aiCategorizer.js';
 import { Transaction } from '../models/transactionModel.js';
 import { User } from '../models/userModel.js';
+import { CategoryOverride } from '../models/categoryOverrideModel.js';
 
 const router = express.Router();
 
@@ -58,11 +59,13 @@ router.get('/gmail-sync', async (req, res) => {
     if (rawTexts.length === 0) return res.json({ ok: true, inserted: 0, transactions: [] });
 
     const aiTxns = await categorizeTransactionsWithAI(rawTexts);
+    const overrides = await CategoryOverride.find({ userId }).lean();
+    const vendorToCat = new Map(overrides.map(o => [o.vendor.toLowerCase(), o.category]));
 
     const docs = aiTxns.map(t => ({
       userId,
       vendor: t.vendor,
-      category: t.category,
+      category: vendorToCat.get(String(t.vendor || '').toLowerCase()) || t.category,
       amount: t.amount,
       date: t.date,
       type: t.type || 'expense',
