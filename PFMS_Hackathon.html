@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PFMS - Personal Finance Management System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        
+        /* Login Page */
+        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-box { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 100%; max-width: 400px; }
+        .login-box h1 { font-size: 32px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; text-align: center; }
+        .login-box p { color: #666; text-align: center; margin-bottom: 30px; font-size: 14px; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 8px; color: #333; font-weight: 500; font-size: 14px; }
+        .input-group input { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; }
+        .input-group input:focus { outline: none; border-color: #667eea; }
+        .btn-primary { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-primary:hover { opacity: 0.9; }
+        .gmail-btn { width: 100%; padding: 14px; background: white; color: #333; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .gmail-btn:hover { background: #f9fafb; }
+        .divider { text-align: center; margin: 20px 0; color: #999; font-size: 14px; }
+        
+        /* Main App */
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .hidden { display: none !important; }
+        
+        /* Header */
+        header { background: white; padding: 20px 30px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .header-left h1 { font-size: 28px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 5px; }
+        .header-left p { color: #666; font-size: 13px; }
+        .header-right { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .sync-status { display: flex; align-items: center; gap: 10px; padding: 10px 20px; background: #f0fdf4; border-radius: 10px; border: 1px solid #86efac; font-size: 14px; }
+        .sync-status.syncing { background: #fef3c7; border-color: #fcd34d; }
+        .sync-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; }
+        .sync-status.syncing .sync-dot { background: #f59e0b; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .user-info { display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: #f3f4f6; border-radius: 10px; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .btn-logout { padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .btn-logout:hover { background: #dc2626; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { background: white; padding: 15px 25px; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.3s; }
+        .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .tab:hover { transform: translateY(-2px); }
+        
+        /* Stats Cards */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1)); border-radius: 50%; transform: translate(30%, -30%); }
+        .stat-label { color: #666; font-size: 14px; margin-bottom: 10px; }
+        .stat-value { font-size: 28px; font-weight: bold; position: relative; z-index: 1; }
+        .income { color: #10b981; }
+        .expense { color: #ef4444; }
+        .balance { color: #3b82f6; }
+        .points { color: #f59e0b; }
+        
+        /* Content */
+        .content { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .content h2 { margin-bottom: 20px; color: #333; font-size: 20px; }
+        
+        /* Charts */
+        .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .chart-container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .chart-container h3 { margin-bottom: 20px; color: #333; font-size: 18px; }
+        
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #f3f4f6; padding: 12px; text-align: left; font-size: 12px; color: #666; position: sticky; top: 0; }
+        td { padding: 12px; border-top: 1px solid #e5e7eb; font-size: 14px; }
+        .table-container { max-height: 400px; overflow-y: auto; }
+        .badge { padding: 4px 8px; border-radius: 5px; font-size: 11px; font-weight: 500; }
+        .badge-gmail { background: #dbeafe; color: #1e40af; }
+        .badge-manual { background: #f3f4f6; color: #4b5563; }
+        
+        /* Rewards Section */
+        .rewards-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .tier-badge { padding: 15px 30px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-radius: 15px; font-size: 24px; font-weight: bold; box-shadow: 0 5px 15px rgba(245,158,11,0.3); }
+        .tier-badge.silver { background: linear-gradient(135deg, #94a3b8, #64748b); }
+        .tier-badge.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+        .badges-list { display: flex; gap: 15px; flex-wrap: wrap; margin: 20px 0; }
+        .badge-item { padding: 15px 20px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 16px; }
+        
+        /* Investment Cards */
+        .investment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+        .investment-card { padding: 25px; background: linear-gradient(135deg, #f9fafb, #ffffff); border: 2px solid #e5e7eb; border-radius: 15px; transition: all 0.3s; }
+        .investment-card:hover { border-color: #667eea; transform: translateY(-5px); box-shadow: 0 10px 30px rgba(102,126,234,0.2); }
+        .investment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .investment-name { font-size: 18px; font-weight: bold; color: #333; }
+        .risk-badge { padding: 5px 10px; border-radius: 5px; font-size: 12px; font-weight: 500; }
+        .risk-low { background: #d1fae5; color: #065f46; }
+        .risk-medium { background: #fef3c7; color: #92400e; }
+        .risk-none { background: #dbeafe; color: #1e40af; }
+        .projection { margin: 10px 0; padding: 10px; background: white; border-radius: 8px; }
+        .projection-label { font-size: 12px; color: #666; margin-bottom: 5px; }
+        .projection-value { font-size: 20px; font-weight: bold; color: #10b981; }
+        .points-reward { margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 8px; text-align: center; font-weight: bold; color: #92400e; }
+        
+        /* Chatbot */
+        .chat-container { height: 500px; display: flex; flex-direction: column; }
+        .messages { flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; border-radius: 10px; margin-bottom: 20px; }
+        .message { margin-bottom: 15px; display: flex; }
+        .message.user { justify-content: flex-end; }
+        .message-bubble { max-width: 70%; padding: 12px 18px; border-radius: 18px; }
+        .message.bot .message-bubble { background: #e5e7eb; }
+        .message.user .message-bubble { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .quick-queries { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        .quick-btn { padding: 8px 15px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 20px; cursor: pointer; font-size: 12px; border: none; transition: all 0.3s; }
+        .quick-btn:hover { background: #667eea; color: white; }
+        .input-area { display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; }
+        button.send { padding: 12px 30px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        button.send:hover { opacity: 0.9; }
+        
+        /* Wasteful Expenses */
+        .wasteful-list { margin-top: 20px; }
+        .wasteful-item { padding: 20px; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 10px; margin-bottom: 15px; }
+        .wasteful-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .wasteful-service { font-size: 18px; font-weight: bold; color: #991b1b; }
+        .wasteful-amount { font-size: 20px; font-weight: bold; color: #ef4444; }
+        .wasteful-reason { color: #666; margin-bottom: 10px; }
+        .wasteful-savings { padding: 10px; background: #d1fae5; border-radius: 8px; color: #065f46; font-weight: 500; }
+        .btn-cancel { padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+        .btn-cancel:hover { background: #dc2626; }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .investment-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <h1>💰 PFMS</h1>
+            <p>AI-Powered Personal Finance Management System</p>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="Enter your email" value="demo@pfms.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter your password" value="demo123">
+            </div>
+            <button class="btn-primary" onclick="login()">Login</button>
+            <div class="divider">OR</div>
+            <button class="gmail-btn" onclick="gmailLogin()">
+                <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#EA4335" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#4285F4" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#34A853" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Continue with Gmail
+            </button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="appPage" class="hidden">
+        <div class="container">
+            <header>
+                <div class="header-left">
+                    <h1>💰 PFMS - Personal Finance Management System</h1>
+                    <p>AI-Powered Financial Insights with Gamification</p>
+                </div>
+                <div class="header-right">
+                    <div class="sync-status" id="syncStatus">
+                        <div class="sync-dot"></div>
+                        <span id="syncText">Gmail Synced</span>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-avatar">D</div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px;">Demo User</div>
+                            <div style="font-size: 12px; color: #666;">demo@pfms.com</div>
+                        </div>
+                    </div>
+                    <button class="btn-logout" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('dashboard')">📊 Dashboard</button>
+                <button class="tab" onclick="showTab('analytics')">📈 Analytics</button>
+                <button class="tab" onclick="showTab('subscriptions')">🔄 Subscriptions</button>
+                <button class="tab" onclick="showTab('investments')">💎 Investments</button>
+                <button class="tab" onclick="showTab('rewards')">🏆 Rewards</button>
+                <button class="tab" onclick="showTab('chatbot')">💬 AI Assistant</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-label">💰 Income</div>
+                    <div class="stat-value income" id="income">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💸 Expenses</div>
+                    <div class="stat-value expense" id="expenses">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💵 Balance</div>
+                    <div class="stat-value balance" id="balance">₹0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📧 Gmail Transactions</div>
+                    <div class="stat-value" style="color: #667eea;" id="gmailCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🏆 Reward Points</div>
+                    <div class="stat-value points" id="rewardPoints">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💎 Tier</div>
+                    <div class="stat-value" style="color: #8b5cf6;" id="userTier">Bronze</div>
+                </div>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboardContent">
+                <div class="content">
+                    <h2>📝 Recent Transactions (<span id="txnCount">0</span> total)</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Merchant</th>
+                                    <th>Category</th>
+                                    <th>Method</th>
+                                    <th>Source</th>
+                                    <th style="text-align: right;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div id="analyticsContent" class="hidden">
+                <div class="chart-grid">
+                    <div class="chart-container">
+                        <h3>📊 Spending by Category</h3>
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>📈 Daily Spending Trend</h3>
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h3>📉 Monthly Breakdown</h3>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Subscriptions Tab -->
+            <div id="subscriptionsContent" class="hidden">
+                <div class="content">
+                    <h2>🔄 Active Subscriptions</h2>
+                    <div id="subscriptionsList"></div>
+                </div>
+                <div class="content">
+                    <h2>⚠️ Wasteful Expenses Detected</h2>
+                    <div class="wasteful-list" id="wastefulList"></div>
+                </div>
+            </div>
+
+            <!-- Investments Tab -->
+            <div id="investmentsContent" class="hidden">
+                <div class="content">
+                    <h2>💎 Investment Recommendations</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Based on your potential monthly savings of <strong id="potentialSavings">₹0</strong></p>
+                    <div class="investment-grid" id="investmentGrid"></div>
+                </div>
+            </div>
+
+            <!-- Rewards Tab -->
+            <div id="rewardsContent" class="hidden">
+                <div class="content">
+                    <div class="rewards-header">
+                        <div>
+                            <h2>🏆 Your Rewards</h2>
+                            <p style="color: #666;">Track your points and achievements</p>
+                        </div>
+                        <div class="tier-badge" id="tierBadge">Bronze</div>
+                    </div>
+                    <div class="badges-list" id="badgesList"></div>
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Recent Rewards</h3>
+                    <div id="rewardHistory"></div>
+                </div>
+            </div>
+
+            <!-- Chatbot Tab -->
+            <div id="chatbotContent" class="hidden">
+                <div class="content">
+                    <div class="chat-container">
+                        <div class="messages" id="messages"></div>
+                        <div class="quick-queries">
+                            <button class="quick-btn" onclick="askQuestion('How much did I spend yesterday?')">Yesterday's spending</button>
+                            <button class="quick-btn" onclick="askQuestion('Which subscriptions can I cancel?')">Cancel subscriptions</button>
+                            <button class="quick-btn" onclick="askQuestion('Where should I invest my savings?')">Investment advice</button>
+                            <button class="quick-btn" onclick="askQuestion('How many reward points do I have?')">My rewards</button>
+                            <button class="quick-btn" onclick="askQuestion('What\\'s my balance?')">Balance</button>
+                        </div>
+                        <div class="input-area">
+                            <input type="text" id="chatInput" placeholder="Ask about your finances..." onkeypress="if(event.key==='Enter') sendMessage()">
+                            <button class="send" onclick="sendMessage()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="pfms_app.js"></script>
+</body>
+</html>
