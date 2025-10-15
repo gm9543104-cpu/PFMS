@@ -11,6 +11,50 @@ let appData = {
 
 let charts = {};
 
+// Backend Integration
+const API_BASE = 'http://localhost:8000/api';
+const USER_ID = 'demo-user';
+
+async function loadDataFromAPI() {
+    try {
+        const res = await fetch(`${API_BASE}/dashboard?userId=${encodeURIComponent(USER_ID)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error('Dashboard fetch failed');
+
+        // Map backend transactions (vendor) to frontend shape (merchant)
+        appData.transactions = (data.transactions || []).map(t => ({
+            ...t,
+            merchant: t.vendor || t.merchant || 'Unknown'
+        }));
+        appData.userPoints = data.points || 0;
+        appData.userTier = data.tier || 'Bronze';
+
+        // Derive subscriptions from recurring flags
+        const recurring = appData.transactions.filter(t => t.isRecurring);
+        appData.subscriptions = Array.from(new Map(recurring.map(r => [
+            `${r.merchant}|${r.amount}`,
+            { service: r.merchant, amount: r.amount, frequency: 'monthly', status: 'active', isUnused: !!r.isUnused }
+        ])).values());
+
+        // Derive wasteful expenses
+        appData.wastefulExpenses = appData.transactions
+            .filter(t => t.isUnused && t.isRecurring)
+            .map(t => ({ type: 'unused_subscription', service: t.merchant, amount: t.amount, reason: 'No usage detected', monthlySavings: t.amount }));
+
+        // Fallback investments based on potential savings
+        const potentialSavings = appData.wastefulExpenses.reduce((sum, w) => sum + w.monthlySavings, 0);
+        appData.investments = [
+            { option: 'Index Fund SIP', risk: 'Medium', monthly: potentialSavings, projected_6m: potentialSavings * 6 * 1.06, projected_12m: potentialSavings * 12 * 1.107, return_6m: 6.0, return_12m: 10.7, points: Math.floor(potentialSavings * 1.44) },
+            { option: 'Digital Gold', risk: 'Low', monthly: potentialSavings, projected_6m: potentialSavings * 6 * 1.04, projected_12m: potentialSavings * 12 * 1.057, return_6m: 4.0, return_12m: 5.7, points: Math.floor(potentialSavings * 1.2) },
+            { option: 'High-Yield Savings', risk: 'No Risk', monthly: potentialSavings, projected_6m: potentialSavings * 6 * 1.02, projected_12m: potentialSavings * 12 * 1.04, return_6m: 2.0, return_12m: 4.0, points: Math.floor(potentialSavings * 1.0) }
+        ];
+    } catch (e) {
+        console.error(e);
+        // Fallback to bundled sample if backend unavailable
+        await loadSampleData();
+    }
+}
+
 // Load sample data
 async function loadSampleData() {
     const sampleData = {
@@ -127,19 +171,42 @@ function gmailLogin() {
     document.getElementById('syncStatus').classList.add('syncing');
     document.getElementById('syncText').textContent = 'Syncing Gmail...';
     
-    setTimeout(() => {
-        showApp();
-        document.getElementById('syncStatus').classList.remove('syncing');
-        document.getElementById('syncText').textContent = 'Gmail Synced ✓';
-    }, 2000);
+    // Try direct sync; if not connected, open OAuth flow
+    fetch(`${API_BASE}/gmail-sync?userId=${encodeURIComponent(USER_ID)}`)
+        .then(r => r.json())
+        .then(async (data) => {
+            if (data && data.ok) {
+                await loadDataFromAPI();
+                updateDashboard();
+                resetCharts();
+                initCharts();
+                renderSubscriptions();
+                renderWastefulExpenses();
+                document.getElementById('syncStatus').classList.remove('syncing');
+                document.getElementById('syncText').textContent = 'Gmail Synced ✓';
+            } else {
+                throw new Error('Not connected');
+            }
+        })
+        .catch(async () => {
+            try {
+                const urlRes = await fetch(`${API_BASE}/gmail-auth-url`);
+                const { url } = await urlRes.json();
+                if (url) window.open(url, '_blank');
+            } catch (_) {}
+            document.getElementById('syncStatus').classList.remove('syncing');
+            document.getElementById('syncText').textContent = 'Connect Gmail';
+            alert('Please connect Gmail, then try sync again.');
+        });
 }
 
 async function showApp() {
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appPage').classList.remove('hidden');
     
-    await loadSampleData();
+    await loadDataFromAPI();
     updateDashboard();
+    resetCharts();
     initCharts();
     renderSubscriptions();
     renderWastefulExpenses();
@@ -183,6 +250,11 @@ function updateDashboard() {
         `;
         tbody.appendChild(tr);
     });
+
+    // Overspending alert
+    if (income > 0 && expenses / income > 0.8) {
+        setTimeout(() => alert('⚠️ Overspending Alert: You have spent more than 80% of your income this month.'), 0);
+    }
 }
 
 // Initialize charts
@@ -267,6 +339,12 @@ function initCharts() {
             }
         }
     });
+}
+
+function resetCharts() {
+    if (charts.category) { charts.category.destroy(); charts.category = null; }
+    if (charts.trend) { charts.trend.destroy(); charts.trend = null; }
+    if (charts.monthly) { charts.monthly.destroy(); charts.monthly = null; }
 }
 
 // Render subscriptions
@@ -471,18 +549,36 @@ function processQuery(query) {
     return 'I can help you with: spending analysis, subscription management, investment recommendations, and reward tracking. What would you like to know?';
 }
 
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById('chatInput');
     const query = input.value.trim();
     if (!query) return;
     
     addMessage('user', query);
     input.value = '';
-    
-    setTimeout(() => {
-        const reply = processQuery(query);
-        addMessage('bot', reply);
-    }, 500);
+    addMessage('bot', 'Thinking...');
+    const messagesDiv = document.getElementById('messages');
+    const thinkingNode = messagesDiv.lastChild;
+
+    try {
+        const resp = await fetch(`${API_BASE}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, query })
+        });
+        const data = await resp.json();
+        messagesDiv.removeChild(thinkingNode);
+        if (data && data.ok) {
+            addMessage('bot', data.reply || '');
+        } else {
+            const fallback = processQuery(query);
+            addMessage('bot', fallback);
+        }
+    } catch (e) {
+        messagesDiv.removeChild(thinkingNode);
+        const fallback = processQuery(query);
+        addMessage('bot', fallback);
+    }
 }
 
 function askQuestion(q) {
